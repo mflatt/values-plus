@@ -1,11 +1,9 @@
 #lang racket/base
 (require (for-syntax racket/base
                      syntax/parse
-                     syntax/stx
-                     racket/list)
+                     syntax/stx)
          racket/contract/base
          racket/contract/combinator
-         racket/list
          racket/match)
 
 (provide values+
@@ -60,8 +58,8 @@
   (syntax-parse stx
     [()
      (values #'()
-             empty
-             empty)]
+             null
+             null)]
     [rest:id
      (with-syntax ([(tmp-rest) (generate-temporaries #'(rest))])
        (values #'tmp-rest
@@ -253,7 +251,7 @@
            (λ ()
              (for ([i (in-range N)])
                (f)))
-           empty))
+           null))
         (cons l ct)))
     (define sts
       (sort ts < #:key cdr))
@@ -265,7 +263,7 @@
       (match-define (cons l t) l*t)
       (printf "~a - ~a - ~a\n"
               (real->decimal-string
-               (/* t (cdr (first sts))))
+               (/* t (cdar sts)))
               l
               (real->decimal-string
                t))))
@@ -375,9 +373,9 @@
          (~optional ((~or ro-e:expr
                           (~seq ro-kw:keyword ro-kw-e:expr))
                      ...)
-                    #:defaults ([(ro-e 1) empty]
-                                [(ro-kw 1) empty]
-                                [(ro-kw-e 1) empty]))
+                    #:defaults ([(ro-e 1) null]
+                                [(ro-kw 1) null]
+                                [(ro-kw-e 1) null]))
          (~optional (~seq #:rest rr-ctc:expr)
                     #:defaults ([rr-ctc #'#f]))))
      (syntax/loc stx
@@ -432,7 +430,7 @@
                           (((contract-projection m) b) a))
                         (if rr-ctcv
                           (((contract-projection rr-ctcv) b) (list-tail res (length rms)))
-                          empty)))))))
+                          null)))))))
                 (raise-blame-error b f "expected procedure")))))))]))
 
 (module+ test
