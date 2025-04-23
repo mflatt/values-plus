@@ -37,18 +37,21 @@
    values))
 
 ;; These macros are obvious
-(define-syntax-rule (let-values+/one ([formals expr]) body)
-  (call-with-values+ (lambda () expr) (lambda formals body)))
+(define-syntax-rule (let-values+/one ([formals expr]) body0 body1 ...)
+  (call-with-values+ (lambda () expr) (lambda formals body0 body1 ...)))
 
 (define-syntax (let*-values+ stx)
   (syntax-case stx ()
-    [(_ ([formals expr]) body)
+    [(_ () body0 body1 ...)
      (syntax/loc stx
-       (let-values+/one ([formals expr]) body))]
-    [(_ ([formals0 expr0] [formals1 expr1] ...) body)
+       (let () body0 body1 ...))]
+    [(_ ([formals expr]) body0 body1 ...)
+     (syntax/loc stx
+       (let-values+/one ([formals expr]) body0 body1 ...))]
+    [(_ ([formals0 expr0] [formals1 expr1] ...) body0 body1 ...)
      (syntax/loc stx
        (let-values+/one ([formals0 expr0])
-                        (let*-values+ ([formals1 expr1] ...) body)))]))
+                        (let*-values+ ([formals1 expr1] ...) body0 body1 ...)))]))
 
 ;; let-values+ is harder because we need to make sure the same things
 ;; are visible This function creates new names with the same structure
@@ -93,7 +96,7 @@
 
 (define-syntax (let-values+ stx)
   (syntax-case stx ()
-    [(_ ([formals expr] ...) body)
+    [(_ ([formals expr] ...) body0 body1 ...)
      (with-syntax ([((temp-formals (formal-id ...) (temp-formal-id ...))
                      ...)
                     (stx-map generate-temporaries-for-formals/list
@@ -102,7 +105,7 @@
          (let*-values+ ([temp-formals expr] ...)
                        (let-values ([(formal-id ...) (values temp-formal-id ...)]
                                     ...)
-                         body))))]))
+                         body0 body1 ...))))]))
 
 (define-syntax (define-values+ stx)
   (syntax-case stx ()
@@ -112,7 +115,7 @@
          (generate-temporaries-for-formals #'formals))
        (quasisyntax/loc stx
          (define-values #,stx-ids
-           (let-values+ ([formals rhs]) (values . #,stx-ids)))))]))
+           (let-values+/one ([formals rhs]) (values . #,stx-ids)))))]))
 
 ;; Tests
 (module+ test
@@ -149,6 +152,11 @@
    =>
    (list 6 3)
 
+   (call-with-values+ (lambda () 6)
+                      (lambda (x #:foo [y 3]) (set! x 7) (list x y)))
+   =>
+   (list 7 3)
+
    (call-with-values+ (lambda () 7)
                       (lambda x x))
    =>
@@ -173,6 +181,13 @@
    =>
    (list (list 10) 2)
 
+   (let-values+ ([x 10]
+                 [(y) 2])
+                (set! x (list 11))
+                (list x y))
+   =>
+   (list (list 11) 2)
+
    (let-values+ ([(x . xs) (values 10 10.2 10.3)]
                  [(y) 2])
                 (list x xs y))
@@ -196,7 +211,7 @@
                 (list x y z))
    =>
    (list 13 2 3)
-  
+
    (let ()
      (define-values+ (x #:foo z)
        (values+ #:foo 1 2))

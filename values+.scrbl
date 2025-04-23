@@ -37,10 +37,10 @@ arguments, then it can also receive a single return value from
 
 @deftogether[(
 @defform[(define-values+ kw-formals rhs-expr)]
-@defform[(let-values+ ([kw-formals rhs-expr]) body ...+)]
-@defform[(let*-values+ ([kw-formals rhs-expr]) body ...+)]
+@defform[(let-values+ ([kw-formals rhs-expr] ...) body ...+)]
+@defform[(let*-values+ ([kw-formals rhs-expr] ...) body ...+)]
 )]{
 
-Like @racket[define], @racket[let-values], and @racket[let*-values],
+Like @racket[define-values], @racket[let-values], and @racket[let*-values],
 but supporting @racket[kw-formals] as in @racket[lambda] to receive
 optional and keyword return values from @racket[rhs-expr].}
