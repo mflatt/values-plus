@@ -3,8 +3,7 @@
                      syntax/parse
                      syntax/stx)
          racket/contract/base
-         racket/contract/combinator
-         racket/match)
+         racket/contract/combinator)
 
 (provide values+
          call-with-values+
@@ -242,7 +241,8 @@
   (define (stress* fs)
     (define ts
       (for/list ([l*f (in-list fs)])
-        (match-define (cons l f) l*f)
+        (define l (car l*f))
+        (define f (cdr l*f))
         (when #f
           (for ([i (in-range 3)])
             (collect-garbage)))
@@ -260,7 +260,8 @@
         y
         (/ x y)))
     (for ([l*t (in-list sts)])
-      (match-define (cons l t) l*t)
+      (define l (car l*t))
+      (define t (cdr l*t))
       (printf "~a - ~a - ~a\n"
               (real->decimal-string
                (/* t (cdar sts)))
