@@ -96,6 +96,12 @@
 
 (define-syntax (let-values+ stx)
   (syntax-case stx ()
+    [(_ () body0 body1 ...)
+     (syntax/loc stx
+       (let () body0 body1 ...))]
+    [(_ ([formals expr]) body0 body1 ...)
+     (syntax/loc stx
+       (let-values+/one ([formals expr]) body0 body1 ...))]
     [(_ ([formals expr] ...) body0 body1 ...)
      (with-syntax ([((temp-formals (formal-id ...) (temp-formal-id ...))
                      ...)
@@ -161,6 +167,11 @@
                       (lambda x x))
    =>
    (list 7)
+
+   (let-values+ ()
+                (list 7 2))
+   =>
+   (list 7 2)
 
    (let-values+ ([(x) 8]
                  [(y) 2])
