@@ -31,7 +31,7 @@
   (make-keyword-procedure
    (lambda (kws kw-args . rest)
      (apply values value+-code kws kw-args rest))
-   values))
+   (procedure-rename values 'values+)))
 
 ;; These macros are obvious
 (define-syntax-rule (let-values+/one ([formals expr]) body0 body1 ...)
