@@ -1,12 +1,9 @@
 #lang racket/base
 (require (for-syntax racket/base
                      syntax/parse
-                     syntax/stx
-                     racket/list)
+                     syntax/stx)
          racket/contract/base
-         racket/contract/combinator
-         racket/list
-         racket/match)
+         racket/contract/combinator)
 
 (provide values+
          call-with-values+
@@ -34,21 +31,24 @@
   (make-keyword-procedure
    (lambda (kws kw-args . rest)
      (apply values value+-code kws kw-args rest))
-   values))
+   (procedure-rename values 'values+)))
 
 ;; These macros are obvious
-(define-syntax-rule (let-values+/one ([formals expr]) body)
-  (call-with-values+ (lambda () expr) (lambda formals body)))
+(define-syntax-rule (let-values+/one ([formals expr]) body0 body1 ...)
+  (call-with-values+ (lambda () expr) (lambda formals body0 body1 ...)))
 
 (define-syntax (let*-values+ stx)
   (syntax-case stx ()
-    [(_ ([formals expr]) body)
+    [(_ () body0 body1 ...)
      (syntax/loc stx
-       (let-values+/one ([formals expr]) body))]
-    [(_ ([formals0 expr0] [formals1 expr1] ...) body)
+       (let () body0 body1 ...))]
+    [(_ ([formals expr]) body0 body1 ...)
+     (syntax/loc stx
+       (let-values+/one ([formals expr]) body0 body1 ...))]
+    [(_ ([formals0 expr0] [formals1 expr1] ...) body0 body1 ...)
      (syntax/loc stx
        (let-values+/one ([formals0 expr0])
-                        (let*-values+ ([formals1 expr1] ...) body)))]))
+                        (let*-values+ ([formals1 expr1] ...) body0 body1 ...)))]))
 
 ;; let-values+ is harder because we need to make sure the same things
 ;; are visible This function creates new names with the same structure
@@ -57,8 +57,8 @@
   (syntax-parse stx
     [()
      (values #'()
-             empty
-             empty)]
+             null
+             null)]
     [rest:id
      (with-syntax ([(tmp-rest) (generate-temporaries #'(rest))])
        (values #'tmp-rest
@@ -93,7 +93,13 @@
 
 (define-syntax (let-values+ stx)
   (syntax-case stx ()
-    [(_ ([formals expr] ...) body)
+    [(_ () body0 body1 ...)
+     (syntax/loc stx
+       (let () body0 body1 ...))]
+    [(_ ([formals expr]) body0 body1 ...)
+     (syntax/loc stx
+       (let-values+/one ([formals expr]) body0 body1 ...))]
+    [(_ ([formals expr] ...) body0 body1 ...)
      (with-syntax ([((temp-formals (formal-id ...) (temp-formal-id ...))
                      ...)
                     (stx-map generate-temporaries-for-formals/list
@@ -102,7 +108,7 @@
          (let*-values+ ([temp-formals expr] ...)
                        (let-values ([(formal-id ...) (values temp-formal-id ...)]
                                     ...)
-                         body))))]))
+                         body0 body1 ...))))]))
 
 (define-syntax (define-values+ stx)
   (syntax-case stx ()
@@ -112,7 +118,7 @@
          (generate-temporaries-for-formals #'formals))
        (quasisyntax/loc stx
          (define-values #,stx-ids
-           (let-values+ ([formals rhs]) (values . #,stx-ids)))))]))
+           (let-values+/one ([formals rhs]) (values . #,stx-ids)))))]))
 
 ;; Tests
 (module+ test
@@ -149,10 +155,20 @@
    =>
    (list 6 3)
 
+   (call-with-values+ (lambda () 6)
+                      (lambda (x #:foo [y 3]) (set! x 7) (list x y)))
+   =>
+   (list 7 3)
+
    (call-with-values+ (lambda () 7)
                       (lambda x x))
    =>
    (list 7)
+
+   (let-values+ ()
+                (list 7 2))
+   =>
+   (list 7 2)
 
    (let-values+ ([(x) 8]
                  [(y) 2])
@@ -172,6 +188,13 @@
                 (list x y))
    =>
    (list (list 10) 2)
+
+   (let-values+ ([x 10]
+                 [(y) 2])
+                (set! x (list 11))
+                (list x y))
+   =>
+   (list (list 11) 2)
 
    (let-values+ ([(x . xs) (values 10 10.2 10.3)]
                  [(y) 2])
@@ -196,7 +219,7 @@
                 (list x y z))
    =>
    (list 13 2 3)
-  
+
    (let ()
      (define-values+ (x #:foo z)
        (values+ #:foo 1 2))
@@ -218,7 +241,8 @@
   (define (stress* fs)
     (define ts
       (for/list ([l*f (in-list fs)])
-        (match-define (cons l f) l*f)
+        (define l (car l*f))
+        (define f (cdr l*f))
         (when #f
           (for ([i (in-range 3)])
             (collect-garbage)))
@@ -227,7 +251,7 @@
            (λ ()
              (for ([i (in-range N)])
                (f)))
-           empty))
+           null))
         (cons l ct)))
     (define sts
       (sort ts < #:key cdr))
@@ -236,10 +260,11 @@
         y
         (/ x y)))
     (for ([l*t (in-list sts)])
-      (match-define (cons l t) l*t)
+      (define l (car l*t))
+      (define t (cdr l*t))
       (printf "~a - ~a - ~a\n"
               (real->decimal-string
-               (/* t (cdr (first sts))))
+               (/* t (cdar sts)))
               l
               (real->decimal-string
                t))))
@@ -349,9 +374,9 @@
          (~optional ((~or ro-e:expr
                           (~seq ro-kw:keyword ro-kw-e:expr))
                      ...)
-                    #:defaults ([(ro-e 1) empty]
-                                [(ro-kw 1) empty]
-                                [(ro-kw-e 1) empty]))
+                    #:defaults ([(ro-e 1) null]
+                                [(ro-kw 1) null]
+                                [(ro-kw-e 1) null]))
          (~optional (~seq #:rest rr-ctc:expr)
                     #:defaults ([rr-ctc #'#f]))))
      (syntax/loc stx
@@ -406,7 +431,7 @@
                           (((contract-projection m) b) a))
                         (if rr-ctcv
                           (((contract-projection rr-ctcv) b) (list-tail res (length rms)))
-                          empty)))))))
+                          null)))))))
                 (raise-blame-error b f "expected procedure")))))))]))
 
 (module+ test

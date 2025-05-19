@@ -1,6 +1,9 @@
 # compiled modules
 compiled/
 
+# docs
+doc/
+
 # common backups, autosaves, lock files, OS meta-files
 *~
 \#*
@@ -8,4 +11,3 @@ compiled/
 .DS_Store
 *.bak
 TAGS
-
